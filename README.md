@@ -1,8 +1,8 @@
 # Handoff
 
 Decision-support tool for first-time buyers of small businesses using SBA 7(a)
-financing. Class prototype and customer-discovery instrument — see `PRD.md` (the
-authoritative spec) and `CLAUDE.md` (working rules).
+financing. Class prototype and customer-discovery instrument — see `docs/PRD.md`
+(the authoritative spec) and `CLAUDE.md` (working rules).
 
 ## Stack
 
