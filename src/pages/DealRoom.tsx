@@ -8,6 +8,8 @@ import NormalizeTab from '@/components/deal/NormalizeTab'
 import PencilTab from '@/components/deal/PencilTab'
 import GutCheckTab from '@/components/deal/GutCheckTab'
 import VerifyTab from '@/components/deal/VerifyTab'
+import LoiTab from '@/components/deal/LoiTab'
+import ClosingTab from '@/components/deal/ClosingTab'
 import PackageTab from '@/components/deal/PackageTab'
 
 /** Deal Room tabs (PRD §5). Only Screen is built so far; the rest are stubs. */
@@ -17,6 +19,8 @@ const TABS = [
   { key: 'pencil', label: 'Pencil Check' },
   { key: 'gutcheck', label: 'Gut Check' },
   { key: 'verify', label: 'Verify' },
+  { key: 'loi', label: 'LOI' },
+  { key: 'close', label: 'Close' },
   { key: 'package', label: 'Package' },
 ] as const
 
@@ -112,6 +116,10 @@ export default function DealRoom() {
             <GutCheckTab dealId={state.deal.id} deal={state.deal.input} />
           ) : activeTab === 'verify' ? (
             <VerifyTab dealId={state.deal.id} deal={state.deal.input} />
+          ) : activeTab === 'loi' ? (
+            <LoiTab dealId={state.deal.id} />
+          ) : activeTab === 'close' ? (
+            <ClosingTab dealId={state.deal.id} />
           ) : (
             <PackageTab dealId={state.deal.id} />
           )}

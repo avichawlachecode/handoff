@@ -19,18 +19,8 @@ const STAGES: Stage[] = [
   { key: 'normalize', label: 'Normalize', built: true, tab: 'normalize' },
   { key: 'pencil', label: 'Pencil', built: true, tab: 'pencil' },
   { key: 'verify', label: 'Verify', built: true, tab: 'verify' },
-  {
-    key: 'loi',
-    label: 'LOI',
-    built: false,
-    roadmap: 'LOI protection pack — buyer-protective clauses in plain English. On the v2 roadmap.',
-  },
-  {
-    key: 'close',
-    label: 'Close',
-    built: false,
-    roadmap: 'Managed closing checklist — stakeholder sequencing and timeline. On the v2 roadmap.',
-  },
+  { key: 'loi', label: 'LOI', built: true, tab: 'loi' },
+  { key: 'close', label: 'Close', built: true, tab: 'close' },
 ]
 
 // The five Deal Room tabs collapse onto the seven journey stages.
@@ -40,6 +30,8 @@ const TAB_TO_STAGE: Record<string, string> = {
   pencil: 'pencil',
   gutcheck: 'pencil',
   verify: 'verify',
+  loi: 'loi',
+  close: 'close',
   package: 'pencil',
 }
 
