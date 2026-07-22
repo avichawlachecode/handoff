@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Surfaces — white background, #F7F8FA secondary surface */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary — navy #1F3864 */
+    --primary: 218 53% 26%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary / muted / accent — surface #F7F8FA */
+    --secondary: 220 23% 97%;
+    --secondary-foreground: 218 53% 26%;
+    --muted: 220 23% 97%;
+    --muted-foreground: 220 9% 40%;
+    --accent: 220 23% 97%;
+    --accent-foreground: 218 53% 26%;
+
+    /* Destructive — verdict red #C0392B */
+    --destructive: 6 63% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 16% 90%;
+    --input: 220 16% 90%;
+    --ring: 218 53% 26%;
+
+    --radius: 0.5rem;
+
+    /* Verdict tokens (CLAUDE.md / PRD §11) */
+    --verdict-green: 138 46% 34%; /* #2E7D46 */
+    --verdict-amber: 33 86% 38%; /* #B4690E */
+    --verdict-red: 6 63% 46%; /* #C0392B */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Financial figures always use tabular numerals (PRD §11) */
+  .tabular-nums,
+  .money {
+    font-variant-numeric: tabular-nums;
+  }
+}
