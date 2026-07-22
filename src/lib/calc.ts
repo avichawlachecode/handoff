@@ -317,6 +317,114 @@ export function screenerVerdict(deal: DealInput): ScreenerVerdict {
 }
 
 // ---------------------------------------------------------------------------
+// Screener heat map (PRD §6.4) — eight diligence signals, each green/amber/red.
+// These are a richer diagnostic than the six §8 flags (which drive the
+// verdict); a few tiles are derived views (earnings quality, price) that are
+// not flags. Every tile carries the rule and the number behind its color.
+// ---------------------------------------------------------------------------
+
+export type TileStatus = 'green' | 'amber' | 'red'
+
+export interface ScreenerTile {
+  id: string
+  label: string
+  status: TileStatus
+  /** The rule behind the color. */
+  rule: string
+  /** The number that produced it. */
+  detail: string
+}
+
+export function screenerTiles(deal: DealInput, a: Assumptions = DEFAULT_ASSUMPTIONS): ScreenerTile[] {
+  const claimed = claimedSDE(deal)
+  const normalized = normalizedSDE(deal)
+  const density = claimed > 0 ? sumAddBacks(deal) / claimed : 0
+  const verifiedRatio = deal.claimedContracts > 0 ? deal.verifiedContracts / deal.claimedContracts : 1
+  const yoy = Math.abs(deal.largestYoyChangePct)
+  const surviving = claimed > 0 ? normalized / claimed : 1
+  const impliedMultiple = normalized > 0 ? deal.askingPrice / normalized : Infinity
+
+  const pct = (n: number) => `${Math.round(n * 100)}%`
+  const usd = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+
+  const missing: string[] = []
+  if (deal.revenueTtm <= 0) missing.push('revenue')
+  if (deal.askingPrice <= 0) missing.push('asking price')
+  if (claimed <= 0) missing.push('earnings')
+  if (deal.claimedContracts <= 0) missing.push('contract counts')
+
+  return [
+    {
+      id: 'add-back-quality',
+      label: 'Add-back quality',
+      status: density <= 0.2 ? 'green' : density <= 0.4 ? 'amber' : 'red',
+      rule: 'Add-backs ÷ claimed SDE (routine ≈ 15%)',
+      detail: `Add-backs are ${pct(density)} of claimed SDE.`,
+    },
+    {
+      id: 'customer-concentration',
+      label: 'Customer concentration',
+      status:
+        deal.topCustomerPct > 20 || deal.top5CustomerPct > 50
+          ? 'red'
+          : deal.topCustomerPct > 15 || deal.top5CustomerPct > 40
+            ? 'amber'
+            : 'green',
+      rule: 'Top customer > 20% or top 5 > 50% of revenue',
+      detail: `Top customer ${deal.topCustomerPct}% of revenue; top 5 at ${deal.top5CustomerPct}%.`,
+    },
+    {
+      id: 'recurring-revenue-verification',
+      label: 'Recurring revenue verification',
+      status: verifiedRatio >= 0.85 ? 'green' : verifiedRatio >= 0.7 ? 'amber' : 'red',
+      rule: 'Contracts provided ÷ claimed (≥ 85%)',
+      detail: `${deal.verifiedContracts} of ${deal.claimedContracts} claimed contracts provided (${pct(verifiedRatio)} verified).`,
+    },
+    {
+      id: 'revenue-trend',
+      label: 'Revenue trend',
+      status: yoy <= 20 ? 'green' : yoy <= 50 ? 'amber' : 'red',
+      rule: 'Largest single-year revenue swing',
+      detail: `Largest single-year change is ${deal.largestYoyChangePct}%.`,
+    },
+    {
+      id: 'earnings-quality',
+      label: 'Earnings quality',
+      status: surviving >= 0.8 ? 'green' : surviving >= 0.55 ? 'amber' : 'red',
+      rule: 'Share of claimed SDE surviving normalization',
+      detail: `${pct(surviving)} of claimed SDE survives (${usd(claimed)} → ${usd(normalized)}).`,
+    },
+    {
+      id: 'price-vs-normalized',
+      label: 'Price vs. normalized earnings',
+      status:
+        impliedMultiple <= a.maxMultiple
+          ? 'green'
+          : impliedMultiple <= a.maxMultiple * 1.25
+            ? 'amber'
+            : 'red',
+      rule: `Asking ÷ normalized SDE vs. ${a.maxMultiple.toFixed(1)}× lender max`,
+      detail: `Ask is ${impliedMultiple.toFixed(1)}× normalized SDE (lenders cap near ${a.maxMultiple.toFixed(1)}×).`,
+    },
+    {
+      id: 'seller-motivation',
+      label: 'Seller motivation',
+      status:
+        deal.reasonForSale === 'declining' ? 'red' : deal.reasonForSale === 'undisclosed' ? 'amber' : 'green',
+      rule: 'Declining or undisclosed motivation is a flag',
+      detail: `Reason for sale: ${deal.reasonForSale}.`,
+    },
+    {
+      id: 'data-completeness',
+      label: 'Data completeness',
+      status: missing.length === 0 ? 'green' : missing.length <= 2 ? 'amber' : 'red',
+      rule: 'Core diligence inputs present',
+      detail: missing.length === 0 ? 'All core inputs provided.' : `Missing: ${missing.join(', ')}.`,
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------------
 // Bank Pencil Check (PRD §6.6 / §8)
 // ---------------------------------------------------------------------------
 
