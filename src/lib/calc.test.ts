@@ -2,6 +2,7 @@ import {
   DEFAULT_ASSUMPTIONS,
   claimedSDE,
   computeDeal,
+  dscrAtPrice,
   gutCheckVerdict,
   normalizeAddBacks,
   normalizedSDE,
@@ -209,5 +210,23 @@ describe('Screener heat-map tiles (PRD §6.4)', () => {
     expect(byId['price-vs-normalized'].status).toBe('red')
     expect(byId['seller-motivation'].status).toBe('green')
     expect(byId['data-completeness'].status).toBe('green')
+  })
+})
+
+describe('DSCR sensitivity (PRD §6.6)', () => {
+  it('clears 1.25 at the pencil price and is under water at the ask', () => {
+    expect(dscrAtPrice(demoDeal, DEFAULT_ASSUMPTIONS, 1_365_000)).toBeGreaterThan(1.25)
+    expect(dscrAtPrice(demoDeal, DEFAULT_ASSUMPTIONS, 1_950_000)).toBeLessThan(1)
+  })
+
+  it('is ~1.25 exactly at the DSCR-max price', () => {
+    const p = pencilCheck(demoDeal, DEFAULT_ASSUMPTIONS)
+    expect(dscrAtPrice(demoDeal, DEFAULT_ASSUMPTIONS, p.dscrMaxPrice)).toBeCloseTo(1.25, 2)
+  })
+
+  it('falls as the purchase price rises', () => {
+    const lo = dscrAtPrice(demoDeal, DEFAULT_ASSUMPTIONS, 1_200_000)
+    const hi = dscrAtPrice(demoDeal, DEFAULT_ASSUMPTIONS, 1_800_000)
+    expect(lo).toBeGreaterThan(hi)
   })
 })

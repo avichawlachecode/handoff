@@ -549,6 +549,19 @@ export function pencilCheck(deal: DealInput, a: Assumptions, buyerLiquidCash = 0
   }
 }
 
+/**
+ * DSCR the deal would carry at a given purchase price (PRD §6.6 sensitivity):
+ * cash available for debt service ÷ annual debt service on a max-leverage loan
+ * (10% injection) at that price. Falls as price rises.
+ */
+export function dscrAtPrice(deal: DealInput, a: Assumptions, price: number): number {
+  const cadsValue = cads(normalizedSDE(deal), a)
+  const projectCost = price + WORKING_CAPITAL + CLOSING_COSTS
+  const loan = projectCost * (1 - MIN_EQUITY_INJECTION_PCT)
+  const annualDebtService = loan * loanConstant(a.interestRate, a.termYears)
+  return annualDebtService > 0 ? cadsValue / annualDebtService : 0
+}
+
 // ---------------------------------------------------------------------------
 // Gut Check (PRD §8)
 // ---------------------------------------------------------------------------
