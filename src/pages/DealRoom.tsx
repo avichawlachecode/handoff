@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { loadDeal, type LoadedDeal } from '@/lib/deals'
+import DealJourney from '@/components/deal/DealJourney'
 import ScreenTab from '@/components/deal/ScreenTab'
 import NormalizeTab from '@/components/deal/NormalizeTab'
 import PencilTab from '@/components/deal/PencilTab'
@@ -55,6 +56,11 @@ export default function DealRoom() {
 
   return (
     <section className="space-y-6">
+      {/* Persistent seven-stage deal journey across the top of the Deal Room. */}
+      <div className="border-b pb-4">
+        <DealJourney dealId={id ?? ''} activeTab={activeTab} />
+      </div>
+
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
         <p className="text-sm text-muted-foreground">Deal {id}</p>
