@@ -18,13 +18,14 @@ describe('DealJourney rail', () => {
     }
   })
 
-  it('links built stages to their tabs and greys unbuilt stages with a v2 badge', () => {
+  it('links every stage to its tab (all built after Task 13 — no v2 remaining)', () => {
     renderRail('screen')
     expect(screen.getByRole('link', { name: /Normalize/i })).toHaveAttribute('href', '/deals/d1?tab=normalize')
     expect(screen.getByRole('link', { name: /Pencil/i })).toHaveAttribute('href', '/deals/d1?tab=pencil')
-    // Verify / LOI / Close are v2 and not links.
-    expect(screen.getAllByText('v2')).toHaveLength(3)
-    expect(screen.queryByRole('link', { name: /Verify/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Verify/i })).toHaveAttribute('href', '/deals/d1?tab=verify')
+    expect(screen.getByRole('link', { name: /LOI/i })).toHaveAttribute('href', '/deals/d1?tab=loi')
+    expect(screen.getByRole('link', { name: /Close/i })).toHaveAttribute('href', '/deals/d1?tab=close')
+    expect(screen.queryByText('v2')).not.toBeInTheDocument()
   })
 
   it('highlights the current stage', () => {
