@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { loadDeal, type LoadedDeal } from '@/lib/deals'
 import ScreenTab from '@/components/deal/ScreenTab'
 import NormalizeTab from '@/components/deal/NormalizeTab'
+import PencilTab from '@/components/deal/PencilTab'
 
 /** Deal Room tabs (PRD §5). Only Screen is built so far; the rest are stubs. */
 const TABS = [
@@ -102,6 +103,8 @@ export default function DealRoom() {
             <ScreenTab dealId={state.deal.id} deal={state.deal.input} />
           ) : activeTab === 'normalize' ? (
             <NormalizeTab dealId={state.deal.id} deal={state.deal.input} />
+          ) : activeTab === 'pencil' ? (
+            <PencilTab dealId={state.deal.id} deal={state.deal.input} />
           ) : (
             <div className="space-y-2">
               <h2 className="text-lg font-medium text-foreground">{STUB_LABELS[activeTab] ?? activeTab}</h2>
