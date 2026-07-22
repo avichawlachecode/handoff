@@ -579,6 +579,67 @@ export function gutCheckVerdict(deal: DealInput, a: Assumptions): GutCheckVerdic
   return 'GREENLIGHT'
 }
 
+export interface GutCheckReport {
+  verdict: GutCheckVerdict
+  /** Explicit conditions that produced the verdict (PRD §6.7: 3–5 for a KILL). */
+  killTriggers: string[]
+  /** What would have to be true to flip the verdict. */
+  whatWouldFlip: string[]
+  /** Five concrete questions to ask the seller next. */
+  questionsForSeller: string[]
+}
+
+/** Narrative Gut Check (PRD §6.7), derived from the flags and the pencil gap. */
+export function gutCheckReport(deal: DealInput, a: Assumptions = DEFAULT_ASSUMPTIONS): GutCheckReport {
+  const flags = redFlags(deal)
+  const firedIds = new Set(flags.map((f) => f.id))
+  const p = pencilCheck(deal, a)
+  const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+
+  const killTriggers: string[] = []
+  const whatWouldFlip: string[] = []
+
+  if (firedIds.has('recurring-revenue-overstated')) {
+    const verifiedPct =
+      deal.claimedContracts > 0 ? Math.round((deal.verifiedContracts / deal.claimedContracts) * 100) : 0
+    const threshold = Math.ceil(0.85 * deal.claimedContracts)
+    killTriggers.push(
+      `Recurring revenue cannot be verified above 85% of the seller's claim — only ${verifiedPct}% (${deal.verifiedContracts} of ${deal.claimedContracts}) are on paper.`,
+    )
+    whatWouldFlip.push(
+      `Recurring revenue verifies above ${threshold} contracts (85% of the ${deal.claimedContracts} claimed).`,
+    )
+  }
+
+  if (firedIds.has('customer-concentration')) {
+    killTriggers.push(
+      `Customer concentration is above a lender's comfort — the top customer is ${deal.topCustomerPct}% of revenue.`,
+    )
+    whatWouldFlip.push('The top-customer contract converts to a multi-year term agreement.')
+  }
+
+  if (p.gapPct > 0.25) {
+    killTriggers.push(`The deal pencils ${Math.round(p.gapPct * 100)}% below the ask (${money(p.gap)} gap).`)
+    whatWouldFlip.push(`The price is renegotiated toward the ${money(p.pencilPrice)} pencil price.`)
+  }
+
+  // Pad toward the §6.7 "3–5" range with the amber flags that also fired.
+  for (const f of flags) {
+    if (killTriggers.length >= 5) break
+    if (f.severity === 'amber') killTriggers.push(`${f.label}: ${f.detail}`)
+  }
+
+  const questionsForSeller = [
+    `Can you provide signed contracts for all ${deal.claimedContracts} recurring accounts?`,
+    'What are the terms, tenure, and renewal history of your largest customer?',
+    'Which add-backs will you document — payroll, deferred capex, and one-time items?',
+    `What drove the ${deal.largestYoyChangePct}% revenue change, and is it repeatable?`,
+    'Would you carry a larger seller note on full standby, or adjust the price?',
+  ]
+
+  return { verdict: gutCheckVerdict(deal, a), killTriggers, whatWouldFlip, questionsForSeller }
+}
+
 // ---------------------------------------------------------------------------
 // Aggregate
 // ---------------------------------------------------------------------------

@@ -5,6 +5,8 @@ import { loadDeal, type LoadedDeal } from '@/lib/deals'
 import ScreenTab from '@/components/deal/ScreenTab'
 import NormalizeTab from '@/components/deal/NormalizeTab'
 import PencilTab from '@/components/deal/PencilTab'
+import GutCheckTab from '@/components/deal/GutCheckTab'
+import PackageTab from '@/components/deal/PackageTab'
 
 /** Deal Room tabs (PRD §5). Only Screen is built so far; the rest are stubs. */
 const TABS = [
@@ -16,13 +18,6 @@ const TABS = [
 ] as const
 
 const DEFAULT_TAB = 'screen'
-
-const STUB_LABELS: Record<string, string> = {
-  normalize: 'Financials Normalizer',
-  pencil: 'Bank Pencil Check',
-  gutcheck: 'Gut Check',
-  package: 'Lender-Ready Package',
-}
 
 type LoadState =
   | { status: 'loading' }
@@ -105,12 +100,10 @@ export default function DealRoom() {
             <NormalizeTab dealId={state.deal.id} deal={state.deal.input} />
           ) : activeTab === 'pencil' ? (
             <PencilTab dealId={state.deal.id} deal={state.deal.input} />
+          ) : activeTab === 'gutcheck' ? (
+            <GutCheckTab dealId={state.deal.id} deal={state.deal.input} />
           ) : (
-            <div className="space-y-2">
-              <h2 className="text-lg font-medium text-foreground">{STUB_LABELS[activeTab] ?? activeTab}</h2>
-              <p className="text-sm text-muted-foreground">This tab is built in a later phase.</p>
-              <p className="pt-4 text-xs uppercase tracking-wide text-muted-foreground/70">Coming soon</p>
-            </div>
+            <PackageTab dealId={state.deal.id} />
           )}
         </>
       )}
