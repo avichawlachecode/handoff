@@ -1,4 +1,6 @@
 import { supabase, isSupabaseConfigured } from './supabase'
+import { ensureSession } from './auth'
+import { demoDeal } from './demoDeal'
 import {
   computeDeal,
   DEFAULT_ASSUMPTIONS,
@@ -7,29 +9,6 @@ import {
   type DealInput,
   type ReasonForSale,
 } from './calc'
-
-/**
- * Ensure there is a Supabase session so RLS inserts (which require
- * user_id = auth.uid()) succeed. Guests get an anonymous session — the PRD's
- * "Continue as guest" path. Anonymous users carry the `authenticated` role, so
- * the Task 3 policies apply unchanged.
- *
- * Requires "Anonymous sign-ins" to be enabled in the Supabase project's Auth
- * settings; otherwise signInAnonymously() returns an error surfaced to the user.
- */
-async function ensureSession(): Promise<string> {
-  const { data } = await supabase.auth.getSession()
-  if (data.session) return data.session.user.id
-
-  const { data: anon, error } = await supabase.auth.signInAnonymously()
-  if (error || !anon.user) {
-    throw new Error(
-      `Could not start a session: ${error?.message ?? 'unknown error'}. ` +
-        'Enable "Anonymous sign-ins" in Supabase Auth settings, or sign in.',
-    )
-  }
-  return anon.user.id
-}
 
 /**
  * Persist a screener deal: the deal row, its add-backs (with computed
@@ -186,4 +165,34 @@ export async function loadDeal(dealId: string): Promise<LoadedDeal | null> {
     isDemo: !!deal.is_demo,
     input,
   }
+}
+
+/** Create a deal from the Keystone demo seed and return its id (PRD §6.1 CTA). */
+export async function loadDemoDeal(): Promise<string> {
+  return saveScreenerDeal(demoDeal)
+}
+
+export interface DealSummary {
+  id: string
+  businessName: string
+  askingPrice: number
+  createdAt: string
+}
+
+/** The current session's deals, newest first (for the /deals pipeline). */
+export async function listDeals(): Promise<DealSummary[]> {
+  if (!isSupabaseConfigured) return []
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) return []
+  const { data: rows, error } = await supabase
+    .from('deals')
+    .select('id, business_name, asking_price, created_at')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(`Could not list deals: ${error.message}`)
+  return (rows ?? []).map((r) => ({
+    id: r.id,
+    businessName: r.business_name ?? 'Untitled deal',
+    askingPrice: r.asking_price == null ? 0 : Number(r.asking_price),
+    createdAt: r.created_at,
+  }))
 }
