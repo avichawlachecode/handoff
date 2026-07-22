@@ -175,9 +175,10 @@ Heat map: a grid of 8 tiles, each **green / amber / red**, each with a one-line 
 Tiles: Add-back quality · Customer concentration · Recurring revenue verification · Revenue trend · Earnings quality · Price vs. normalized earnings · Seller motivation · Data completeness
 
 Above the grid, a single verdict banner:
+- 2+ red → **RED — likely a 10-minute NO**
+- exactly 1 red → **AMBER — proceed only if these resolve**
+- 0 red, 3+ amber → **AMBER — proceed only if these resolve**
 - 0 red, ≤2 amber → **GREEN — worth real diligence**
-- 1–2 red → **AMBER — proceed only if these resolve**
-- 3+ red → **RED — likely a 10-minute NO**
 
 Below: `Continue to Financial Normalizer →`
 

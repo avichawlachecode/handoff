@@ -9,6 +9,7 @@ import {
   redFlagCounts,
   redFlags,
   screenerVerdict,
+  screenerVerdictFromCounts,
   sdeDelta,
   sumDisallowedAddBacks,
 } from './calc'
@@ -98,12 +99,32 @@ describe('Red flags and screener (PRD §8 / §6.4)', () => {
     }
   })
 
-  // NOTE: PRD §6.4's rule ("1–2 red → AMBER") and PRD §9's summary ("Screener:
-  // RED") disagree for this deal (2 red, 2 amber). screenerVerdict() follows the
-  // explicit §6.4 rule so the displayed verdict always matches the displayed
-  // rule — see the PR description. Both sections agree on the 2/2 counts above.
-  it('screener verdict follows the explicit §6.4 rule (AMBER at 2 red)', () => {
-    expect(screenerVerdict(demoDeal)).toBe('AMBER')
+  // PRD §6.4 (aligned to the §9 fixture): 2+ red → RED. The demo deal fires
+  // 2 red, so the screener verdict is RED.
+  it('screener verdict is RED (2+ red flags)', () => {
+    expect(screenerVerdict(demoDeal)).toBe('RED')
+  })
+})
+
+describe('Screener thresholds (PRD §6.4)', () => {
+  it('2+ red → RED (no overlap at the 2-red boundary)', () => {
+    expect(screenerVerdictFromCounts(2, 0)).toBe('RED')
+    expect(screenerVerdictFromCounts(2, 2)).toBe('RED')
+    expect(screenerVerdictFromCounts(3, 5)).toBe('RED')
+  })
+
+  it('exactly 1 red → AMBER', () => {
+    expect(screenerVerdictFromCounts(1, 0)).toBe('AMBER')
+    expect(screenerVerdictFromCounts(1, 9)).toBe('AMBER')
+  })
+
+  it('0 red & 3+ amber → AMBER', () => {
+    expect(screenerVerdictFromCounts(0, 3)).toBe('AMBER')
+  })
+
+  it('0 red & ≤2 amber → GREEN', () => {
+    expect(screenerVerdictFromCounts(0, 0)).toBe('GREEN')
+    expect(screenerVerdictFromCounts(0, 2)).toBe('GREEN')
   })
 })
 

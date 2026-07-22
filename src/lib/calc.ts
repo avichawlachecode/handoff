@@ -289,20 +289,31 @@ export function redFlagCounts(deal: DealInput): { red: number; amber: number } {
   }
 }
 
+/** Human-readable screener rule, shown alongside the verdict banner (PRD §6.4). */
+export const SCREENER_VERDICT_RULE =
+  '2+ red → RED · exactly 1 red → AMBER · 0 red & 3+ amber → AMBER · 0 red & ≤2 amber → GREEN'
+
 /**
- * Screener verdict per PRD §6.4's explicit rule:
- *   0 red & ≤2 amber → GREEN · 1–2 red → AMBER · 3+ red → RED
+ * Map fired-flag counts to a screener verdict per PRD §6.4:
+ *   2+ red → RED · exactly 1 red → AMBER
+ *   0 red & 3+ amber → AMBER · 0 red & ≤2 amber → GREEN
  *
- * NOTE: for the demo deal (2 red, 2 amber) this yields AMBER, which diverges
- * from the §9 summary line ("Screener: RED"). §6.4 governs so the displayed
- * verdict always matches the displayed rule (the product's core trust rule:
- * never show a verdict without the rule that produced it). Flagged in the PR.
+ * Pure policy, split out so the thresholds are testable without crafting deals.
+ */
+export function screenerVerdictFromCounts(red: number, amber: number): ScreenerVerdict {
+  if (red >= 2) return 'RED'
+  if (red === 1) return 'AMBER'
+  if (amber >= 3) return 'AMBER'
+  return 'GREEN'
+}
+
+/**
+ * Screener verdict for a deal (PRD §6.4). For the demo deal (2 red, 2 amber)
+ * this is RED, matching the §9 fixture.
  */
 export function screenerVerdict(deal: DealInput): ScreenerVerdict {
   const { red, amber } = redFlagCounts(deal)
-  if (red >= 3) return 'RED'
-  if (red === 0 && amber <= 2) return 'GREEN'
-  return 'AMBER'
+  return screenerVerdictFromCounts(red, amber)
 }
 
 // ---------------------------------------------------------------------------
