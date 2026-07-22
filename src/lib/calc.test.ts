@@ -3,6 +3,7 @@ import {
   claimedSDE,
   computeDeal,
   dscrAtPrice,
+  gutCheckReport,
   gutCheckVerdict,
   normalizeAddBacks,
   normalizedSDE,
@@ -228,5 +229,27 @@ describe('DSCR sensitivity (PRD §6.6)', () => {
     const lo = dscrAtPrice(demoDeal, DEFAULT_ASSUMPTIONS, 1_200_000)
     const hi = dscrAtPrice(demoDeal, DEFAULT_ASSUMPTIONS, 1_800_000)
     expect(lo).toBeGreaterThan(hi)
+  })
+})
+
+describe('Gut Check report (PRD §6.7)', () => {
+  const report = gutCheckReport(demoDeal)
+
+  it('is a KILL for the demo deal', () => {
+    expect(report.verdict).toBe('KILL')
+  })
+
+  it('lists 3–5 kill triggers', () => {
+    expect(report.killTriggers.length).toBeGreaterThanOrEqual(3)
+    expect(report.killTriggers.length).toBeLessThanOrEqual(5)
+  })
+
+  it('states what would have to be true — 935 contracts and a term agreement', () => {
+    expect(report.whatWouldFlip.some((s) => s.includes('935'))).toBe(true)
+    expect(report.whatWouldFlip.some((s) => /term agreement/i.test(s))).toBe(true)
+  })
+
+  it('gives five concrete questions for the seller', () => {
+    expect(report.questionsForSeller).toHaveLength(5)
   })
 })
