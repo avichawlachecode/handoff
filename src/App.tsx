@@ -9,6 +9,7 @@ import DealRoom from '@/pages/DealRoom'
 import Starter from '@/pages/Starter'
 import Thanks from '@/pages/Thanks'
 import Admin from '@/pages/Admin'
+import Health from '@/pages/Health'
 import NotFound from '@/pages/NotFound'
 
 export default function App() {
@@ -25,6 +26,8 @@ export default function App() {
           <Route path="/starter" element={<Starter />} />
           <Route path="/thanks" element={<Thanks />} />
           <Route path="/admin" element={<Admin />} />
+          {/* Temporary Supabase connectivity check — remove after verifying. */}
+          <Route path="/health" element={<Health />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
