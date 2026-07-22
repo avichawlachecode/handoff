@@ -17,8 +17,9 @@ export default function App() {
     <BrowserRouter>
       <RouteAnalytics />
       <Routes>
+        {/* Landing renders its own full-bleed chrome; every other route uses Layout. */}
+        <Route path="/" element={<Landing />} />
         <Route element={<Layout />}>
-          <Route path="/" element={<Landing />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/deals" element={<Deals />} />
