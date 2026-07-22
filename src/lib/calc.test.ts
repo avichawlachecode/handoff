@@ -8,6 +8,7 @@ import {
   pencilCheck,
   redFlagCounts,
   redFlags,
+  screenerTiles,
   screenerVerdict,
   screenerVerdictFromCounts,
   sdeDelta,
@@ -57,10 +58,11 @@ describe('Keystone Air & Heat demo deal (PRD §9)', () => {
 describe('Add-back auto-verdicts (PRD §8)', () => {
   const results = normalizeAddBacks(demoDeal)
 
-  it('returns one result per add-back with a rationale on every row', () => {
+  it('returns one result per add-back with a rationale and lender note on every row', () => {
     expect(results).toHaveLength(5)
     for (const r of results) {
       expect(r.rationale.length).toBeGreaterThan(0)
+      expect(r.lenderNote.length).toBeGreaterThan(0)
     }
   })
 
@@ -170,5 +172,42 @@ describe('computeDeal aggregate', () => {
     expect(c.addBackResults).toHaveLength(5)
     expect(c.redCount).toBe(2)
     expect(c.amberCount).toBe(2)
+  })
+})
+
+describe('Screener heat-map tiles (PRD §6.4)', () => {
+  const tiles = screenerTiles(demoDeal)
+  const byId = Object.fromEntries(tiles.map((t) => [t.id, t]))
+
+  it('produces the eight named tiles', () => {
+    expect(tiles).toHaveLength(8)
+    expect(tiles.map((t) => t.id)).toEqual([
+      'add-back-quality',
+      'customer-concentration',
+      'recurring-revenue-verification',
+      'revenue-trend',
+      'earnings-quality',
+      'price-vs-normalized',
+      'seller-motivation',
+      'data-completeness',
+    ])
+  })
+
+  it('every tile carries the rule and the number that produced it', () => {
+    for (const tile of tiles) {
+      expect(tile.rule.length).toBeGreaterThan(0)
+      expect(tile.detail.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('colors the demo deal signals', () => {
+    expect(byId['add-back-quality'].status).toBe('amber')
+    expect(byId['customer-concentration'].status).toBe('red')
+    expect(byId['recurring-revenue-verification'].status).toBe('red')
+    expect(byId['revenue-trend'].status).toBe('amber')
+    expect(byId['earnings-quality'].status).toBe('amber')
+    expect(byId['price-vs-normalized'].status).toBe('red')
+    expect(byId['seller-motivation'].status).toBe('green')
+    expect(byId['data-completeness'].status).toBe('green')
   })
 })

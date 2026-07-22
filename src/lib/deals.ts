@@ -2,8 +2,10 @@ import { supabase, isSupabaseConfigured } from './supabase'
 import {
   computeDeal,
   DEFAULT_ASSUMPTIONS,
+  type AddBackCategory,
   type Assumptions,
   type DealInput,
+  type ReasonForSale,
 } from './calc'
 
 /**
@@ -126,4 +128,62 @@ export async function saveScreenerDeal(
   }
 
   return dealId
+}
+
+export interface LoadedDeal {
+  id: string
+  businessName: string
+  isDemo: boolean
+  /** Reconstructed calc input — the Deal Room recomputes results from this. */
+  input: DealInput
+}
+
+/**
+ * Load a deal (and its add-backs) and map it back to a DealInput. Returns null
+ * when the deal does not exist or RLS hides it. Results are recomputed from the
+ * input via calc.ts, so there is one source of truth for every number.
+ */
+export async function loadDeal(dealId: string): Promise<LoadedDeal | null> {
+  const { data: deal, error } = await supabase.from('deals').select('*').eq('id', dealId).maybeSingle()
+  if (error) throw new Error(`Could not load the deal: ${error.message}`)
+  if (!deal) return null
+
+  const { data: addBacks, error: abError } = await supabase
+    .from('add_backs')
+    .select('*')
+    .eq('deal_id', dealId)
+  if (abError) throw new Error(`Could not load add-backs: ${abError.message}`)
+
+  const n = (v: unknown) => (v == null ? 0 : Number(v))
+  const input: DealInput = {
+    businessName: deal.business_name ?? '',
+    industry: deal.industry ?? '',
+    location: deal.location ?? '',
+    askingPrice: n(deal.asking_price),
+    revenueTtm: n(deal.revenue_ttm),
+    yearsInBusiness: n(deal.years_in_business),
+    reasonForSale: (deal.reason_for_sale ?? 'undisclosed') as ReasonForSale,
+    reportedNetIncome: n(deal.reported_net_income),
+    ownerComp: n(deal.owner_comp),
+    interestExpense: n(deal.interest_expense),
+    depreciationAmort: n(deal.depreciation_amort),
+    addBacks: (addBacks ?? []).map((a) => ({
+      description: a.description ?? '',
+      amount: n(a.amount),
+      category: (a.category ?? 'Other') as AddBackCategory,
+    })),
+    nonRecurringAdjustment: n(deal.non_recurring_adjustment),
+    topCustomerPct: n(deal.top_customer_pct),
+    top5CustomerPct: n(deal.top5_customer_pct),
+    claimedContracts: n(deal.claimed_contracts),
+    verifiedContracts: n(deal.verified_contracts),
+    largestYoyChangePct: n(deal.largest_yoy_change_pct),
+  }
+
+  return {
+    id: deal.id,
+    businessName: deal.business_name ?? 'Untitled deal',
+    isDemo: !!deal.is_demo,
+    input,
+  }
 }
