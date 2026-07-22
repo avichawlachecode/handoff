@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { logEvent } from '@/lib/events'
 
-interface Tier {
+export interface Tier {
   id: string
   name: string
   price: string
@@ -12,7 +12,7 @@ interface Tier {
 }
 
 // From the WTP interview data (PRD §10).
-const TIERS: Tier[] = [
+export const PRICING_TIERS: Tier[] = [
   {
     id: 'deal_triage',
     name: 'Deal Triage',
@@ -48,7 +48,7 @@ export default function PricingCards({ source }: { source: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {TIERS.map((tier) => (
+        {PRICING_TIERS.map((tier) => (
           <div
             key={tier.id}
             className={cn(
