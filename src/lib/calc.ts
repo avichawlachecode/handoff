@@ -1,0 +1,476 @@
+// Pure, deterministic financial logic for Handoff.
+//
+// Every output is traceable to a rule in the PRD. No I/O, no framework code, no
+// randomness — this file is the single source of truth for all calculations
+// (CLAUDE.md: "All financial logic lives in src/lib/calc.ts").
+//
+// See docs/PRD.md §8 (calculation spec) and §9 (demo-deal expected outputs).
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type ReasonForSale =
+  | 'retiring'
+  | 'health'
+  | 'relocating'
+  | 'other venture'
+  | 'declining'
+  | 'undisclosed'
+
+export type AddBackCategory =
+  | 'Personal expense'
+  | 'One-time event'
+  | 'Non-operating'
+  | 'Owner perk'
+  | 'Growth investment'
+  | 'Other'
+
+export type AddBackVerdict = 'Allowed' | 'Disallowed'
+
+export interface AddBack {
+  description: string
+  amount: number
+  category: AddBackCategory
+}
+
+export interface AddBackResult extends AddBack {
+  verdict: AddBackVerdict
+  /** Plain-English "why", shown next to the verdict (PRD §6.5). */
+  rationale: string
+}
+
+export interface DealInput {
+  businessName: string
+  industry: string
+  location: string
+  askingPrice: number
+  revenueTtm: number
+  yearsInBusiness: number
+  reasonForSale: ReasonForSale
+
+  reportedNetIncome: number
+  ownerComp: number
+  interestExpense: number
+  depreciationAmort: number
+
+  addBacks: AddBack[]
+
+  /**
+   * Non-recurring revenue adjustment excluded from run-rate earnings, e.g. a
+   * one-off new-construction job margin. This is NOT an add-back row; it is
+   * subtracted from normalized SDE on top of the disallowed add-backs
+   * (PRD §9, "Additional non-recurring adjustment"). Without it the demo deal
+   * normalizes to $572,000 instead of $455,000.
+   */
+  nonRecurringAdjustment: number
+
+  topCustomerPct: number
+  top5CustomerPct: number
+  claimedContracts: number
+  verifiedContracts: number
+  largestYoyChangePct: number
+}
+
+export interface Assumptions {
+  /** Annual interest rate as a decimal, e.g. 0.11 for 11%. */
+  interestRate: number
+  termYears: number
+  buyerSalary: number
+  annualCapex: number
+  requiredDscr: number
+  maxMultiple: number
+}
+
+export type ScreenerVerdict = 'GREEN' | 'AMBER' | 'RED'
+export type GutCheckVerdict = 'KILL' | 'PROCEED WITH CONDITIONS' | 'GREENLIGHT'
+export type FlagSeverity = 'red' | 'amber'
+
+export interface RedFlag {
+  id: string
+  label: string
+  severity: FlagSeverity
+  /** The rule that fired. */
+  rule: string
+  /** The number that triggered it. */
+  detail: string
+}
+
+// ---------------------------------------------------------------------------
+// Model constants (PRD §6.6 / §8). Structural values, not slider-adjustable.
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_ASSUMPTIONS: Assumptions = {
+  interestRate: 0.11,
+  termYears: 10,
+  buyerSalary: 120_000,
+  annualCapex: 45_000,
+  requiredDscr: 1.25,
+  maxMultiple: 3.0,
+}
+
+export const WORKING_CAPITAL = 50_000
+export const CLOSING_COSTS = 35_000
+export const MIN_EQUITY_INJECTION_PCT = 0.1
+export const MAX_SELLER_NOTE_INJECTION_PCT = 0.5
+export const LENDER_TYPICAL_INJECTION_PCT = 0.2
+
+// Keyword rules for add-back auto-verdicts (PRD §8).
+const PAYROLL_KEYWORDS = ['payroll', 'salary', 'salaries', 'wage', 'wages']
+const CAPEX_KEYWORDS = ['maintenance', 'equipment', 'repair', 'repairs']
+
+// ---------------------------------------------------------------------------
+// SDE
+// ---------------------------------------------------------------------------
+
+export function sumAddBacks(deal: DealInput): number {
+  return deal.addBacks.reduce((sum, ab) => sum + ab.amount, 0)
+}
+
+/** Claimed SDE = net income + owner comp + interest + D&A + Σ(all add-backs). */
+export function claimedSDE(deal: DealInput): number {
+  return (
+    deal.reportedNetIncome +
+    deal.ownerComp +
+    deal.interestExpense +
+    deal.depreciationAmort +
+    sumAddBacks(deal)
+  )
+}
+
+function matchesAny(text: string, keywords: string[]): boolean {
+  const lower = text.toLowerCase()
+  return keywords.some((k) => lower.includes(k))
+}
+
+/** Auto-verdict a single add-back per the PRD §8 rules. */
+export function verdictForAddBack(addBack: AddBack, claimedSdeValue: number): AddBackResult {
+  const disallow = (rationale: string): AddBackResult => ({
+    ...addBack,
+    verdict: 'Disallowed',
+    rationale,
+  })
+  const allow = (rationale: string): AddBackResult => ({ ...addBack, verdict: 'Allowed', rationale })
+
+  // Structural disallowances apply regardless of the declared category.
+  if (matchesAny(addBack.description, PAYROLL_KEYWORDS)) {
+    return disallow('Payroll for a role the buyer must replace — not a discretionary add-back.')
+  }
+  if (matchesAny(addBack.description, CAPEX_KEYWORDS)) {
+    return disallow('Capital expenditure (maintenance / equipment / repair), not an add-back.')
+  }
+  if (addBack.category === 'Growth investment') {
+    return disallow('Recurring in nature — the business needs this spend to hold revenue.')
+  }
+  if (addBack.category === 'Other' && addBack.amount > 0.1 * claimedSdeValue) {
+    return disallow(
+      'Large "Other" add-back (>10% of claimed SDE) — requires documentation a lender will not assume.',
+    )
+  }
+
+  switch (addBack.category) {
+    case 'Personal expense':
+    case 'Owner perk':
+      return allow('Documented owner benefit; ceases at close.')
+    case 'One-time event':
+      return allow('Non-recurring, documented one-time item.')
+    case 'Non-operating':
+      return allow('Non-operating item, outside the normal run-rate.')
+    default:
+      return allow('Accepted as a documented, non-recurring add-back.')
+  }
+}
+
+export function normalizeAddBacks(deal: DealInput): AddBackResult[] {
+  const claimed = claimedSDE(deal)
+  return deal.addBacks.map((ab) => verdictForAddBack(ab, claimed))
+}
+
+export function sumDisallowedAddBacks(deal: DealInput): number {
+  return normalizeAddBacks(deal)
+    .filter((r) => r.verdict === 'Disallowed')
+    .reduce((sum, r) => sum + r.amount, 0)
+}
+
+/**
+ * Bank-normalized SDE = claimed SDE − Σ(disallowed add-backs) − non-recurring
+ * adjustment (PRD §8, plus the §9 run-rate adjustment).
+ */
+export function normalizedSDE(deal: DealInput): number {
+  return claimedSDE(deal) - sumDisallowedAddBacks(deal) - deal.nonRecurringAdjustment
+}
+
+/** Signed difference (normalized − claimed); negative when normalization cuts SDE. */
+export function sdeDelta(deal: DealInput): number {
+  return normalizedSDE(deal) - claimedSDE(deal)
+}
+
+// ---------------------------------------------------------------------------
+// Red flags & screener (PRD §8 / §6.4)
+// ---------------------------------------------------------------------------
+
+/** All red flags that fire for this deal, severity-ordered (red before amber). */
+export function redFlags(deal: DealInput): RedFlag[] {
+  const flags: RedFlag[] = []
+
+  const verifiedRatio =
+    deal.claimedContracts > 0 ? deal.verifiedContracts / deal.claimedContracts : 1
+  if (verifiedRatio < 0.85) {
+    const unverifiedPct = Math.round((1 - verifiedRatio) * 100)
+    flags.push({
+      id: 'recurring-revenue-overstated',
+      label: 'Recurring revenue overstated',
+      severity: 'red',
+      rule: 'Verified contracts / claimed contracts < 85%',
+      detail: `Seller claims ${deal.claimedContracts} contracts; ${deal.verifiedContracts} provided — ${unverifiedPct}% unverified.`,
+    })
+  }
+
+  if (deal.topCustomerPct > 20 || deal.top5CustomerPct > 50) {
+    flags.push({
+      id: 'customer-concentration',
+      label: 'Customer concentration',
+      severity: 'red',
+      rule: 'Top customer > 20% or top 5 > 50% of revenue',
+      detail: `Top customer ${deal.topCustomerPct}% of revenue; top 5 ${deal.top5CustomerPct}%.`,
+    })
+  }
+
+  if (Math.abs(deal.largestYoyChangePct) > 30) {
+    flags.push({
+      id: 'revenue-spike',
+      label: 'Revenue spike',
+      severity: 'amber',
+      rule: 'abs(largest single-year revenue change) > 30%',
+      detail: `Largest single-year revenue change is ${deal.largestYoyChangePct}%.`,
+    })
+  }
+
+  const claimed = claimedSDE(deal)
+  const addBackDensity = claimed > 0 ? sumAddBacks(deal) / claimed : 0
+  if (addBackDensity > 0.25) {
+    flags.push({
+      id: 'add-back-density',
+      label: 'Add-back density',
+      severity: 'amber',
+      rule: 'Σ add-backs / claimed SDE > 25%',
+      detail: `Add-backs are ${Math.round(addBackDensity * 100)}% of claimed SDE (lenders treat ~15% as routine).`,
+    })
+  }
+
+  if (deal.reasonForSale === 'declining' || deal.reasonForSale === 'undisclosed') {
+    flags.push({
+      id: 'undisclosed-motivation',
+      label: 'Seller motivation',
+      severity: 'amber',
+      rule: 'Reason for sale is declining or undisclosed',
+      detail: `Reason for sale: ${deal.reasonForSale}.`,
+    })
+  }
+
+  if (deal.yearsInBusiness < 5) {
+    flags.push({
+      id: 'thin-history',
+      label: 'Thin operating history',
+      severity: 'amber',
+      rule: 'Years in business < 5',
+      detail: `Only ${deal.yearsInBusiness} years in business.`,
+    })
+  }
+
+  return flags
+}
+
+export function redFlagCounts(deal: DealInput): { red: number; amber: number } {
+  const flags = redFlags(deal)
+  return {
+    red: flags.filter((f) => f.severity === 'red').length,
+    amber: flags.filter((f) => f.severity === 'amber').length,
+  }
+}
+
+/** Human-readable screener rule, shown alongside the verdict banner (PRD §6.4). */
+export const SCREENER_VERDICT_RULE =
+  '2+ red → RED · exactly 1 red → AMBER · 0 red & 3+ amber → AMBER · 0 red & ≤2 amber → GREEN'
+
+/**
+ * Map fired-flag counts to a screener verdict per PRD §6.4:
+ *   2+ red → RED · exactly 1 red → AMBER
+ *   0 red & 3+ amber → AMBER · 0 red & ≤2 amber → GREEN
+ *
+ * Pure policy, split out so the thresholds are testable without crafting deals.
+ */
+export function screenerVerdictFromCounts(red: number, amber: number): ScreenerVerdict {
+  if (red >= 2) return 'RED'
+  if (red === 1) return 'AMBER'
+  if (amber >= 3) return 'AMBER'
+  return 'GREEN'
+}
+
+/**
+ * Screener verdict for a deal (PRD §6.4). For the demo deal (2 red, 2 amber)
+ * this is RED, matching the §9 fixture.
+ */
+export function screenerVerdict(deal: DealInput): ScreenerVerdict {
+  const { red, amber } = redFlagCounts(deal)
+  return screenerVerdictFromCounts(red, amber)
+}
+
+// ---------------------------------------------------------------------------
+// Bank Pencil Check (PRD §6.6 / §8)
+// ---------------------------------------------------------------------------
+
+export interface PencilResult {
+  normalizedSDE: number
+  cads: number
+  annualLoanConstant: number
+  maxAnnualDebtService: number
+  maxLoan: number
+  dscrMaxProjectCost: number
+  dscrMaxPrice: number
+  multipleMaxPrice: number
+  pencilPrice: number
+  bindingConstraint: 'dscr' | 'multiple'
+  askingPrice: number
+  gap: number
+  gapPct: number
+  totalProjectCost: number
+  sbaLoan: number
+  equityInjection: number
+  maxSellerNoteCredit: number
+  minBuyerCash: number
+  lenderTypicalInjection: number
+  residualLiquidity: number
+}
+
+/** Cash available for debt service = normalized SDE − buyer salary − capex. */
+export function cads(normalizedSdeValue: number, a: Assumptions): number {
+  return normalizedSdeValue - a.buyerSalary - a.annualCapex
+}
+
+/** Annualized monthly-amortizing loan constant (PRD §8). */
+export function loanConstant(interestRate: number, termYears: number): number {
+  const r = interestRate / 12
+  const n = termYears * 12
+  if (r === 0) return 12 / n
+  const factor = r / (1 - Math.pow(1 + r, -n))
+  return factor * 12
+}
+
+export function pencilCheck(deal: DealInput, a: Assumptions, buyerLiquidCash = 0): PencilResult {
+  const nSde = normalizedSDE(deal)
+
+  // Debt-service constraint.
+  const cadsValue = cads(nSde, a)
+  const maxAnnualDebtService = cadsValue / a.requiredDscr
+  const annualLoanConstant = loanConstant(a.interestRate, a.termYears)
+  const maxLoan = maxAnnualDebtService / annualLoanConstant
+  const dscrMaxProjectCost = maxLoan / (1 - MIN_EQUITY_INJECTION_PCT)
+  const dscrMaxPrice = round(dscrMaxProjectCost - WORKING_CAPITAL - CLOSING_COSTS)
+
+  // Multiple constraint.
+  const multipleMaxPrice = round(nSde * a.maxMultiple)
+
+  // Lenders apply both; the lower binds.
+  const pencilPrice = Math.min(dscrMaxPrice, multipleMaxPrice)
+  const bindingConstraint = multipleMaxPrice <= dscrMaxPrice ? 'multiple' : 'dscr'
+
+  const gap = deal.askingPrice - pencilPrice
+  const gapPct = deal.askingPrice !== 0 ? gap / deal.askingPrice : 0
+
+  // Sources & uses at the pencil price.
+  const totalProjectCost = pencilPrice + WORKING_CAPITAL + CLOSING_COSTS
+  const equityInjection = round(MIN_EQUITY_INJECTION_PCT * totalProjectCost)
+  const sbaLoan = totalProjectCost - equityInjection
+  const maxSellerNoteCredit = round(MAX_SELLER_NOTE_INJECTION_PCT * equityInjection)
+  const minBuyerCash = equityInjection - maxSellerNoteCredit
+  const lenderTypicalInjection = round(LENDER_TYPICAL_INJECTION_PCT * totalProjectCost)
+  const residualLiquidity = buyerLiquidCash - lenderTypicalInjection
+
+  return {
+    normalizedSDE: nSde,
+    cads: cadsValue,
+    annualLoanConstant,
+    maxAnnualDebtService,
+    maxLoan: round(maxLoan),
+    dscrMaxProjectCost: round(dscrMaxProjectCost),
+    dscrMaxPrice,
+    multipleMaxPrice,
+    pencilPrice,
+    bindingConstraint,
+    askingPrice: deal.askingPrice,
+    gap,
+    gapPct,
+    totalProjectCost,
+    sbaLoan,
+    equityInjection,
+    maxSellerNoteCredit,
+    minBuyerCash,
+    lenderTypicalInjection,
+    residualLiquidity,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gut Check (PRD §8)
+// ---------------------------------------------------------------------------
+
+/**
+ * KILL if ≥2 red flags or the pencil gap exceeds 25% of the ask.
+ * PROCEED WITH CONDITIONS if 1 red flag or the gap is 10–25%.
+ * GREENLIGHT otherwise.
+ */
+export function gutCheckVerdict(deal: DealInput, a: Assumptions): GutCheckVerdict {
+  const redCount = redFlagCounts(deal).red
+  const { gapPct } = pencilCheck(deal, a)
+  if (redCount >= 2 || gapPct > 0.25) return 'KILL'
+  if (redCount === 1 || (gapPct >= 0.1 && gapPct <= 0.25)) return 'PROCEED WITH CONDITIONS'
+  return 'GREENLIGHT'
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate
+// ---------------------------------------------------------------------------
+
+export interface DealComputation {
+  claimedSDE: number
+  normalizedSDE: number
+  sdeDelta: number
+  addBackResults: AddBackResult[]
+  redFlags: RedFlag[]
+  redCount: number
+  amberCount: number
+  screenerVerdict: ScreenerVerdict
+  pencil: PencilResult
+  gutCheck: GutCheckVerdict
+}
+
+/** Run the full deterministic analysis for a deal in one call. */
+export function computeDeal(
+  deal: DealInput,
+  a: Assumptions = DEFAULT_ASSUMPTIONS,
+  buyerLiquidCash = 0,
+): DealComputation {
+  const flags = redFlags(deal)
+  return {
+    claimedSDE: claimedSDE(deal),
+    normalizedSDE: normalizedSDE(deal),
+    sdeDelta: sdeDelta(deal),
+    addBackResults: normalizeAddBacks(deal),
+    redFlags: flags,
+    redCount: flags.filter((f) => f.severity === 'red').length,
+    amberCount: flags.filter((f) => f.severity === 'amber').length,
+    screenerVerdict: screenerVerdict(deal),
+    pencil: pencilCheck(deal, a, buyerLiquidCash),
+    gutCheck: gutCheckVerdict(deal, a),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Round to the nearest whole dollar. */
+function round(n: number): number {
+  return Math.round(n)
+}
