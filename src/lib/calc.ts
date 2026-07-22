@@ -38,6 +38,8 @@ export interface AddBackResult extends AddBack {
   verdict: AddBackVerdict
   /** Plain-English "why", shown next to the verdict (PRD §6.5). */
   rationale: string
+  /** Expandable "what a lender will ask for" note (PRD §6.5). */
+  lenderNote: string
 }
 
 export interface DealInput {
@@ -145,39 +147,67 @@ function matchesAny(text: string, keywords: string[]): boolean {
 
 /** Auto-verdict a single add-back per the PRD §8 rules. */
 export function verdictForAddBack(addBack: AddBack, claimedSdeValue: number): AddBackResult {
-  const disallow = (rationale: string): AddBackResult => ({
+  const disallow = (rationale: string, lenderNote: string): AddBackResult => ({
     ...addBack,
     verdict: 'Disallowed',
     rationale,
+    lenderNote,
   })
-  const allow = (rationale: string): AddBackResult => ({ ...addBack, verdict: 'Allowed', rationale })
+  const allow = (rationale: string, lenderNote: string): AddBackResult => ({
+    ...addBack,
+    verdict: 'Allowed',
+    rationale,
+    lenderNote,
+  })
 
   // Structural disallowances apply regardless of the declared category.
   if (matchesAny(addBack.description, PAYROLL_KEYWORDS)) {
-    return disallow('Payroll for a role the buyer must replace — not a discretionary add-back.')
+    return disallow(
+      'Payroll for a role the buyer must replace — not a discretionary add-back.',
+      'A lender will ask who performs this role after close and what it costs to replace them (role, W-2, market wage).',
+    )
   }
   if (matchesAny(addBack.description, CAPEX_KEYWORDS)) {
-    return disallow('Capital expenditure (maintenance / equipment / repair), not an add-back.')
+    return disallow(
+      'Capital expenditure (maintenance / equipment / repair), not an add-back.',
+      'A lender will ask for a fixed-asset schedule and the expected annual maintenance capex.',
+    )
   }
   if (addBack.category === 'Growth investment') {
-    return disallow('Recurring in nature — the business needs this spend to hold revenue.')
+    return disallow(
+      'Recurring in nature — the business needs this spend to hold revenue.',
+      'A lender will ask whether revenue holds if this spend stops.',
+    )
   }
   if (addBack.category === 'Other' && addBack.amount > 0.1 * claimedSdeValue) {
     return disallow(
       'Large "Other" add-back (>10% of claimed SDE) — requires documentation a lender will not assume.',
+      'A lender will ask for documentation substantiating this add-back before crediting it.',
     )
   }
 
   switch (addBack.category) {
     case 'Personal expense':
     case 'Owner perk':
-      return allow('Documented owner benefit; ceases at close.')
+      return allow(
+        'Documented owner benefit; ceases at close.',
+        'A lender will ask for receipts showing the expense is personal and ends at close.',
+      )
     case 'One-time event':
-      return allow('Non-recurring, documented one-time item.')
+      return allow(
+        'Non-recurring, documented one-time item.',
+        'A lender will ask for proof the item is truly one-time (e.g., the settlement or invoice).',
+      )
     case 'Non-operating':
-      return allow('Non-operating item, outside the normal run-rate.')
+      return allow(
+        'Non-operating item, outside the normal run-rate.',
+        'A lender will ask for support that this sits outside normal operations.',
+      )
     default:
-      return allow('Accepted as a documented, non-recurring add-back.')
+      return allow(
+        'Accepted as a documented, non-recurring add-back.',
+        'A lender will ask for documentation supporting this add-back.',
+      )
   }
 }
 

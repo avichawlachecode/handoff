@@ -58,10 +58,11 @@ describe('Keystone Air & Heat demo deal (PRD §9)', () => {
 describe('Add-back auto-verdicts (PRD §8)', () => {
   const results = normalizeAddBacks(demoDeal)
 
-  it('returns one result per add-back with a rationale on every row', () => {
+  it('returns one result per add-back with a rationale and lender note on every row', () => {
     expect(results).toHaveLength(5)
     for (const r of results) {
       expect(r.rationale.length).toBeGreaterThan(0)
+      expect(r.lenderNote.length).toBeGreaterThan(0)
     }
   })
 

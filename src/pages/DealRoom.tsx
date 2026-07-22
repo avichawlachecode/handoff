@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { loadDeal, type LoadedDeal } from '@/lib/deals'
 import ScreenTab from '@/components/deal/ScreenTab'
+import NormalizeTab from '@/components/deal/NormalizeTab'
 
 /** Deal Room tabs (PRD §5). Only Screen is built so far; the rest are stubs. */
 const TABS = [
@@ -99,6 +100,8 @@ export default function DealRoom() {
         <>
           {activeTab === 'screen' ? (
             <ScreenTab dealId={state.deal.id} deal={state.deal.input} />
+          ) : activeTab === 'normalize' ? (
+            <NormalizeTab dealId={state.deal.id} deal={state.deal.input} />
           ) : (
             <div className="space-y-2">
               <h2 className="text-lg font-medium text-foreground">{STUB_LABELS[activeTab] ?? activeTab}</h2>
