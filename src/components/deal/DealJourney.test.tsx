@@ -22,9 +22,9 @@ describe('DealJourney rail', () => {
     renderRail('screen')
     expect(screen.getByRole('link', { name: /Normalize/i })).toHaveAttribute('href', '/deals/d1?tab=normalize')
     expect(screen.getByRole('link', { name: /Pencil/i })).toHaveAttribute('href', '/deals/d1?tab=pencil')
-    // Verify / LOI / Close are v2 and not links.
-    expect(screen.getAllByText('v2')).toHaveLength(3)
-    expect(screen.queryByRole('link', { name: /Verify/i })).not.toBeInTheDocument()
+    // Verify is now built (Task 12); LOI and Close remain v2.
+    expect(screen.getByRole('link', { name: /Verify/i })).toHaveAttribute('href', '/deals/d1?tab=verify')
+    expect(screen.getAllByText('v2')).toHaveLength(2)
   })
 
   it('highlights the current stage', () => {

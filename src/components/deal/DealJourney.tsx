@@ -18,12 +18,7 @@ const STAGES: Stage[] = [
   { key: 'screen', label: 'Screen', built: true, tab: 'screen' },
   { key: 'normalize', label: 'Normalize', built: true, tab: 'normalize' },
   { key: 'pencil', label: 'Pencil', built: true, tab: 'pencil' },
-  {
-    key: 'verify',
-    label: 'Verify',
-    built: false,
-    roadmap: 'Pre-LOI verification toolkit — request templates to confirm the seller’s numbers. On the v2 roadmap.',
-  },
+  { key: 'verify', label: 'Verify', built: true, tab: 'verify' },
   {
     key: 'loi',
     label: 'LOI',
@@ -44,6 +39,7 @@ const TAB_TO_STAGE: Record<string, string> = {
   normalize: 'normalize',
   pencil: 'pencil',
   gutcheck: 'pencil',
+  verify: 'verify',
   package: 'pencil',
 }
 
