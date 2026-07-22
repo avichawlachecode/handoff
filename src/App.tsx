@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from '@/components/Layout'
+import RouteAnalytics from '@/components/RouteAnalytics'
 import Landing from '@/pages/Landing'
 import Pricing from '@/pages/Pricing'
 import Onboarding from '@/pages/Onboarding'
@@ -14,6 +15,7 @@ import NotFound from '@/pages/NotFound'
 export default function App() {
   return (
     <BrowserRouter>
+      <RouteAnalytics />
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Landing />} />

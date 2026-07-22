@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { logEvent } from '@/lib/events'
 import {
   CartesianGrid,
   Line,
@@ -52,6 +53,7 @@ function Slider({
   step,
   display,
   onChange,
+  onCommit,
 }: {
   label: string
   value: number
@@ -60,6 +62,7 @@ function Slider({
   step: number
   display: (v: number) => string
   onChange: (v: number) => void
+  onCommit?: (v: number) => void
 }) {
   return (
     <div>
@@ -75,6 +78,8 @@ function Slider({
         value={value}
         aria-label={label}
         onChange={(e) => onChange(Number(e.target.value))}
+        onPointerUp={() => onCommit?.(value)}
+        onKeyUp={() => onCommit?.(value)}
         className="mt-1 w-full accent-primary"
       />
     </div>
@@ -93,6 +98,14 @@ function UsesSourcesRow({ label, value, bold }: { label: string; value: number; 
 export default function PencilTab({ dealId, deal }: { dealId: string; deal: DealInput }) {
   const [assumptions, setAssumptions] = useState<Assumptions>(DEFAULT_ASSUMPTIONS)
   const [liquidCash, setLiquidCash] = useState<number>(DEMO_BUYER_LIQUID_CASH)
+
+  // Time spent on the Pencil Check tab — logged on unmount (PRD §12 Task 10).
+  useEffect(() => {
+    const start = Date.now()
+    return () => {
+      void logEvent('pencil_time_spent', { seconds: Math.round((Date.now() - start) / 1000), dealId })
+    }
+  }, [dealId])
 
   const p = useMemo(() => pencilCheck(deal, assumptions, liquidCash), [deal, assumptions, liquidCash])
   const dscrAtAsk = useMemo(() => dscrAtPrice(deal, assumptions, deal.askingPrice), [deal, assumptions])
@@ -274,6 +287,7 @@ export default function PencilTab({ dealId, deal }: { dealId: string; deal: Deal
               step={s.step}
               display={s.display}
               onChange={setAssumption(s.key)}
+              onCommit={(v) => void logEvent('pencil_slider', { key: s.key, value: v, dealId })}
             />
           ))}
         </div>
